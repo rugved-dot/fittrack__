@@ -36,6 +36,14 @@ export default function SettingsClient({ profile }: Props) {
   const dark = theme === 'dark'
   const p = profile ?? { name: 'Rugved', weight_kg: 74, target_weight_kg: 70, height_cm: 175, age: 25, calories_goal: 1900, protein_goal_g: 150, carbs_goal_g: 180, fat_goal_g: 60 }
 
+  const [sleepDate, setSleepDate] = useState(new Date().toISOString().slice(0, 10))
+  const [sleepHours, setSleepHours] = useState('')
+  const [sleepDeep, setSleepDeep] = useState('')
+  const [sleepRem, setSleepRem] = useState('')
+  const [sleepScore, setSleepScore] = useState('')
+  const [sleepSaving, setSleepSaving] = useState(false)
+  const [sleepStatus, setSleepStatus] = useState('')
+
   const [name, setName] = useState(p.name)
   const [weight, setWeight] = useState(String(p.weight_kg))
   const [targetWeight, setTargetWeight] = useState(String(p.target_weight_kg))
@@ -63,6 +71,26 @@ export default function SettingsClient({ profile }: Props) {
     })
     setSaving(false)
     alert('Profile saved!')
+    router.refresh()
+  }
+
+  async function saveSleep() {
+    const h = parseFloat(sleepHours)
+    if (!sleepDate || isNaN(h) || h < 0 || h > 24) { setSleepStatus('Enter a valid duration (0–24h)'); return }
+    setSleepSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('sleep_logs').upsert({
+      user_id: user.id,
+      date: sleepDate,
+      duration_h: +h.toFixed(2),
+      deep_h: sleepDeep ? +parseFloat(sleepDeep).toFixed(2) : null,
+      rem_h: sleepRem ? +parseFloat(sleepRem).toFixed(2) : null,
+      score: sleepScore ? parseInt(sleepScore) : null,
+    }, { onConflict: 'user_id,date' })
+    setSleepSaving(false)
+    setSleepStatus(`✓ Saved ${h}h sleep for ${sleepDate}`)
+    setSleepHours(''); setSleepDeep(''); setSleepRem(''); setSleepScore('')
     router.refresh()
   }
 
@@ -344,6 +372,49 @@ export default function SettingsClient({ profile }: Props) {
               Protein goal: <span className="font-bold" style={{ color: '#6366f1' }}>{Math.round(parseFloat(weight) * 2)}g/day</span>
             </div>
           </div>
+        </div>
+
+        {/* ── Manual sleep log ─────────────────────── */}
+        <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.15em] mb-1" style={{ color: 'var(--muted2)' }}>😴 Manual Sleep Log</div>
+          <div className="text-sm font-medium mt-2 mb-4" style={{ color: 'var(--muted)' }}>
+            Log sleep manually if your watch import isn't working.
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--muted2)' }}>Date</label>
+              <input type="date" value={sleepDate} onChange={e => setSleepDate(e.target.value)} className={fieldCls} />
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: '#10b981' }}>Total sleep (hours) *</label>
+              <input type="number" step="0.5" placeholder="e.g. 7.5" value={sleepHours} onChange={e => setSleepHours(e.target.value)} className={fieldCls} />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--muted2)' }}>Deep (h)</label>
+                <input type="number" step="0.1" placeholder="1.5" value={sleepDeep} onChange={e => setSleepDeep(e.target.value)} className={fieldCls} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--muted2)' }}>REM (h)</label>
+                <input type="number" step="0.1" placeholder="2.0" value={sleepRem} onChange={e => setSleepRem(e.target.value)} className={fieldCls} />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--muted2)' }}>Score</label>
+                <input type="number" placeholder="85" value={sleepScore} onChange={e => setSleepScore(e.target.value)} className={fieldCls} />
+              </div>
+            </div>
+          </div>
+          <button onClick={saveSleep} disabled={sleepSaving}
+            className="w-full mt-4 text-white font-black py-3.5 rounded-xl text-sm tracking-[0.08em] uppercase disabled:opacity-50"
+            style={{ background: '#6366f1' }}>
+            {sleepSaving ? 'Saving…' : '+ Log Sleep'}
+          </button>
+          {sleepStatus && (
+            <div className="mt-3 text-sm font-semibold px-4 py-3 rounded-xl"
+              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: '#10b981' }}>
+              {sleepStatus}
+            </div>
+          )}
         </div>
 
         {/* ── Samsung Health import ─────────────────── */}

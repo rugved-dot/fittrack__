@@ -27,8 +27,9 @@ export default async function DashboardPage() {
 
   const p = profile ?? { name: 'Rugved', calories_goal: 1900, protein_goal_g: 150, weight_kg: 74, target_weight_kg: 70 }
   const todayCal = todayFood.reduce((s: number, f: { calories: number }) => s + f.calories, 0)
+  const firstWeight = weightLogs.length ? weightLogs[0].weight_kg : p.weight_kg
   const lastWeight = weightLogs.length ? weightLogs[weightLogs.length - 1].weight_kg : p.weight_kg
-  const lost = +(77.5 - lastWeight).toFixed(1)
+  const lost = +(firstWeight - lastWeight).toFixed(1)
   const calLeft = Math.round(p.calories_goal - todayCal)
 
   const dates = last7Days()

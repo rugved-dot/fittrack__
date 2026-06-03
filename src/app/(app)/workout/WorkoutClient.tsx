@@ -125,6 +125,18 @@ export default function WorkoutClient({ workoutLogs, templates }: Props) {
     router.refresh()
   }
 
+  async function logRestDay() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('workout_logs').upsert({
+      user_id: user.id,
+      date: today(),
+      template_name: 'Rest Day',
+      exercises: [],
+    }, { onConflict: 'user_id,date,template_name' })
+    router.refresh()
+  }
+
   const filteredExercises = ALL_EXERCISES.filter(ex =>
     (!exCat || ex.cat === exCat) &&
     (!exSearch || ex.name.toLowerCase().includes(exSearch.toLowerCase()))
@@ -157,10 +169,13 @@ export default function WorkoutClient({ workoutLogs, templates }: Props) {
 
         {todayWorkout && (
           <div className="flex items-center gap-3 mt-5 px-4 py-3 rounded-2xl"
-            style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
-            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#10b981' }} />
-            <span className="text-sm font-bold flex-1" style={{ color: '#059669' }}>
-              Trained today · {todayWorkout.template_name}
+            style={{
+              background: todayWorkout.template_name === 'Rest Day' ? 'rgba(100,116,139,0.08)' : 'rgba(16,185,129,0.08)',
+              border: `1px solid ${todayWorkout.template_name === 'Rest Day' ? 'rgba(100,116,139,0.2)' : 'rgba(16,185,129,0.2)'}`,
+            }}>
+            <span className="text-lg flex-shrink-0">{todayWorkout.template_name === 'Rest Day' ? '🛌' : '✅'}</span>
+            <span className="text-sm font-bold flex-1" style={{ color: todayWorkout.template_name === 'Rest Day' ? 'var(--muted)' : '#059669' }}>
+              {todayWorkout.template_name === 'Rest Day' ? 'Rest day logged' : `Trained today · ${todayWorkout.template_name}`}
             </span>
             <button onClick={() => deleteWorkout(todayWorkout.id)}
               className="text-xs px-2.5 py-1 rounded-lg font-semibold flex-shrink-0"
@@ -201,6 +216,23 @@ export default function WorkoutClient({ workoutLogs, templates }: Props) {
               )
             })}
           </div>
+
+          {/* Rest day button */}
+          {!todayWorkout && (
+            <button onClick={logRestDay}
+              className="w-full mt-3 flex items-center gap-3 px-5 py-4 rounded-2xl text-left active:scale-[0.98] transition-transform"
+              style={{
+                background: dark ? 'rgba(74,96,128,0.08)' : 'rgba(148,163,184,0.08)',
+                border: `1.5px dashed ${dark ? 'rgba(74,96,128,0.3)' : 'rgba(148,163,184,0.4)'}`,
+              }}>
+              <span className="text-2xl">🛌</span>
+              <div>
+                <div className="font-bold text-sm" style={{ color: 'var(--muted)' }}>Mark as Rest Day</div>
+                <div className="text-[11px]" style={{ color: 'var(--muted2)' }}>Recovery is part of the program</div>
+              </div>
+              <span className="ml-auto text-lg" style={{ color: 'var(--muted2)' }}>›</span>
+            </button>
+          )}
         </div>
 
         {/* ── Recent sessions ───────────────────────── */}

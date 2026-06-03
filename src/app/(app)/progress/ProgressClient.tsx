@@ -13,7 +13,7 @@ interface Props {
   profile: Profile | null
 }
 
-const START_WEIGHT = 77.5
+const START_WEIGHT = weightLogs.length ? weightLogs[0].weight_kg : p.weight_kg
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function last7Dates() {
@@ -232,7 +232,7 @@ export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, pr
 
           <div className="mb-5">
             <div className="flex justify-between text-[11px] font-semibold mb-2" style={{ color: 'var(--muted2)' }}>
-              <span>77.5kg</span>
+              <span>{START_WEIGHT}kg</span>
               <span className="font-bold" style={{ color: '#10b981' }}>{progressPct.toFixed(0)}% to goal</span>
               <span>{p.target_weight_kg}kg</span>
             </div>
