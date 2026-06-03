@@ -3,21 +3,24 @@
 import { useEffect, useRef } from 'react'
 import { useTheme } from '@/components/ThemeProvider'
 import Link from 'next/link'
+import BodyFatInsights from '@/components/progress/BodyFatInsights'
 
 interface WeightLog { date: string; weight_kg: number }
 interface WorkoutLog { date: string; template_name: string }
-interface Profile { calories_goal: number; protein_goal_g: number; weight_kg: number; target_weight_kg: number }
+interface Profile { calories_goal: number; protein_goal_g: number; weight_kg: number; target_weight_kg: number; gender?: string; goal?: string; height_cm?: number; age?: number }
 interface SleepLog { date: string; duration_h: number; deep_h?: number; rem_h?: number; score?: number }
 interface StepLog { date: string; steps: number; distance_km?: number }
 interface HRLog { date: string; resting?: number; avg: number }
 interface StressLog { date: string; avg: number }
 interface Health { sleep: SleepLog[]; steps: StepLog[]; hr: HRLog[]; stress: StressLog[] }
+interface BFLog { date: string; body_fat_pct: number; muscle_mass_kg?: number }
 interface Props {
   weightLogs: WeightLog[]
   workoutLogs: WorkoutLog[]
   foodByDate: Record<string, { calories: number; protein: number }>
   profile: Profile | null
   health: Health
+  bodyFatLogs: BFLog[]
 }
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -28,7 +31,7 @@ function last7Dates() {
   })
 }
 
-export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, profile, health }: Props) {
+export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, profile, health, bodyFatLogs }: Props) {
   const weightRef = useRef<HTMLCanvasElement>(null)
   const calRef = useRef<HTMLCanvasElement>(null)
   const sleepRef = useRef<HTMLCanvasElement>(null)
@@ -347,6 +350,17 @@ export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, pr
             </div>
           </div>
         </div>
+
+        {/* ── Body Fat Intelligence ─────────────────── */}
+        <div className="text-[11px] font-semibold uppercase tracking-[0.15em] pt-1" style={{ color: 'var(--muted2)' }}>Body Fat Intelligence</div>
+        {p && <BodyFatInsights
+          bodyFatLogs={bodyFatLogs}
+          weightLogs={weightLogs}
+          workoutLogs={workoutLogs}
+          foodByDate={foodByDate}
+          sleepLogs={health.sleep}
+          profile={p}
+        />}
 
         {/* ── Weight chart ──────────────────────────── */}
         <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>

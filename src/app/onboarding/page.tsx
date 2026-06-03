@@ -59,6 +59,8 @@ export default function OnboardingPage() {
     await supabase.from('profiles').upsert({
       id: user.id,
       name: name.trim() || 'Athlete',
+      gender,
+      goal,
       weight_kg: w,
       target_weight_kg: parseFloat(targetWeight) || w - 5,
       height_cm: Math.round(h),

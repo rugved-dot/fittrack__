@@ -8,6 +8,7 @@ import { useTheme } from '@/components/ThemeProvider'
 interface Profile {
   name: string; weight_kg: number; target_weight_kg: number; height_cm: number; age: number
   calories_goal: number; protein_goal_g: number; carbs_goal_g: number; fat_goal_g: number
+  gender?: string; goal?: string
 }
 interface Props { profile: Profile | null }
 
@@ -34,7 +35,7 @@ export default function SettingsClient({ profile }: Props) {
   const supabase = createClient()
   const { theme, toggle } = useTheme()
   const dark = theme === 'dark'
-  const p = profile ?? { name: 'Rugved', weight_kg: 74, target_weight_kg: 70, height_cm: 175, age: 25, calories_goal: 1900, protein_goal_g: 150, carbs_goal_g: 180, fat_goal_g: 60 }
+  const p = profile ?? { name: 'Rugved', weight_kg: 74, target_weight_kg: 70, height_cm: 175, age: 25, calories_goal: 1900, protein_goal_g: 150, carbs_goal_g: 180, fat_goal_g: 60, gender: 'male', goal: 'lose' }
 
   const [sleepDate, setSleepDate] = useState(new Date().toISOString().slice(0, 10))
   const [sleepHours, setSleepHours] = useState('')
@@ -44,6 +45,8 @@ export default function SettingsClient({ profile }: Props) {
   const [sleepSaving, setSleepSaving] = useState(false)
   const [sleepStatus, setSleepStatus] = useState('')
 
+  const [gender, setGender] = useState<string>(p.gender ?? 'male')
+  const [goal, setGoal] = useState<string>(p.goal ?? 'lose')
   const [name, setName] = useState(p.name)
   const [weight, setWeight] = useState(String(p.weight_kg))
   const [targetWeight, setTargetWeight] = useState(String(p.target_weight_kg))
@@ -57,14 +60,16 @@ export default function SettingsClient({ profile }: Props) {
   const [importStatus, setImportStatus] = useState('')
   const [importColor, setImportColor] = useState('#10b981')
 
-  const tdee = Math.round((10 * parseFloat(weight) + 6.25 * parseFloat(height) - 5 * parseFloat(age) + 5) * 1.55)
+  const bmrOffset = gender === 'female' ? -161 : 5
+  const tdee = Math.round((10 * parseFloat(weight) + 6.25 * parseFloat(height) - 5 * parseFloat(age) + bmrOffset) * 1.55)
 
   async function saveProfile() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     await supabase.from('profiles').upsert({
-      id: user.id, name, weight_kg: parseFloat(weight), target_weight_kg: parseFloat(targetWeight),
+      id: user.id, name, gender, goal,
+      weight_kg: parseFloat(weight), target_weight_kg: parseFloat(targetWeight),
       height_cm: parseInt(height), age: parseInt(age),
       calories_goal: parseInt(calories), protein_goal_g: parseInt(protein),
       carbs_goal_g: parseInt(carbs), fat_goal_g: parseInt(fat),
@@ -359,6 +364,48 @@ export default function SettingsClient({ profile }: Props) {
                 <input type={type} value={val} onChange={e => set(e.target.value)} className={fieldCls} />
               </div>
             ))}
+
+            {/* Gender */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--muted2)' }}>Biological Sex</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ v: 'male', label: '♂ Male' }, { v: 'female', label: '♀ Female' }].map(opt => (
+                  <button key={opt.v} type="button" onClick={() => setGender(opt.v)}
+                    className="py-3 rounded-xl text-sm font-bold transition-all"
+                    style={{
+                      background: gender === opt.v ? 'rgba(16,185,129,0.12)' : 'var(--surface2)',
+                      border: `1.5px solid ${gender === opt.v ? 'rgba(16,185,129,0.4)' : 'var(--border)'}`,
+                      color: gender === opt.v ? '#10b981' : 'var(--muted)',
+                    }}>{opt.label}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Goal */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--muted2)' }}>Primary Goal</label>
+              <div className="space-y-2">
+                {[
+                  { v: 'lose', label: '🔥 Lose Fat', sub: 'Calorie deficit + high protein' },
+                  { v: 'maintain', label: '⚖️ Maintain', sub: 'Body recomposition' },
+                  { v: 'gain', label: '💪 Build Muscle', sub: 'Slight surplus + progressive overload' },
+                ].map(opt => (
+                  <button key={opt.v} type="button" onClick={() => setGoal(opt.v)}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all"
+                    style={{
+                      background: goal === opt.v ? 'rgba(16,185,129,0.08)' : 'var(--surface2)',
+                      border: `1.5px solid ${goal === opt.v ? 'rgba(16,185,129,0.35)' : 'var(--border)'}`,
+                    }}>
+                    <div className="w-3.5 h-3.5 rounded-full border-2 flex-shrink-0"
+                      style={{ borderColor: goal === opt.v ? '#10b981' : 'var(--muted2)', background: goal === opt.v ? '#10b981' : 'transparent' }} />
+                    <div>
+                      <div className="text-sm font-bold" style={{ color: 'var(--text)' }}>{opt.label}</div>
+                      <div className="text-[11px]" style={{ color: 'var(--muted2)' }}>{opt.sub}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

@@ -5,7 +5,7 @@ import ProgressClient from './ProgressClient'
 async function getData() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { weightLogs: [], workoutLogs: [], foodByDate: {}, profile: null, health: {} }
+  if (!user) return { weightLogs: [], workoutLogs: [], foodByDate: {}, profile: null, health: {}, bodyFatLogs: [] }
 
   const last30 = new Date(); last30.setDate(last30.getDate() - 30)
   const last7 = new Date(); last7.setDate(last7.getDate() - 7)
@@ -15,8 +15,9 @@ async function getData() {
   const [
     { data: weights }, { data: workouts }, { data: foods }, profile,
     { data: sleepLogs }, { data: stepLogs }, { data: hrLogs }, { data: stressLogs },
+    { data: bodyFatLogs },
   ] = await Promise.all([
-    supabase.from('weight_logs').select('*').eq('user_id', user.id).order('date').limit(30),
+    supabase.from('weight_logs').select('*').eq('user_id', user.id).order('date').limit(60),
     supabase.from('workout_logs').select('date,template_name').eq('user_id', user.id).order('date', { ascending: false }).limit(30),
     supabase.from('food_logs').select('date,calories,protein_g').eq('user_id', user.id).gte('date', last30str),
     getProfile(),
@@ -24,6 +25,7 @@ async function getData() {
     supabase.from('step_logs').select('*').eq('user_id', user.id).gte('date', last7str).order('date'),
     supabase.from('heart_rate_logs').select('*').eq('user_id', user.id).gte('date', last7str).order('date'),
     supabase.from('stress_logs').select('*').eq('user_id', user.id).gte('date', last7str).order('date'),
+    supabase.from('body_fat_logs').select('*').eq('user_id', user.id).order('date').limit(60),
   ])
 
   const foodByDate: Record<string, { calories: number; protein: number }> = {}
@@ -44,6 +46,7 @@ async function getData() {
       hr: hrLogs ?? [],
       stress: stressLogs ?? [],
     },
+    bodyFatLogs: bodyFatLogs ?? [],
   }
 }
 
