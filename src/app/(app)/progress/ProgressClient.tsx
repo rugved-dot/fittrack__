@@ -2,15 +2,22 @@
 
 import { useEffect, useRef } from 'react'
 import { useTheme } from '@/components/ThemeProvider'
+import Link from 'next/link'
 
 interface WeightLog { date: string; weight_kg: number }
 interface WorkoutLog { date: string; template_name: string }
 interface Profile { calories_goal: number; protein_goal_g: number; weight_kg: number; target_weight_kg: number }
+interface SleepLog { date: string; duration_h: number; deep_h?: number; rem_h?: number; score?: number }
+interface StepLog { date: string; steps: number; distance_km?: number }
+interface HRLog { date: string; resting?: number; avg: number }
+interface StressLog { date: string; avg: number }
+interface Health { sleep: SleepLog[]; steps: StepLog[]; hr: HRLog[]; stress: StressLog[] }
 interface Props {
   weightLogs: WeightLog[]
   workoutLogs: WorkoutLog[]
   foodByDate: Record<string, { calories: number; protein: number }>
   profile: Profile | null
+  health: Health
 }
 
 function today() { return new Date().toISOString().slice(0, 10) }
@@ -21,9 +28,13 @@ function last7Dates() {
   })
 }
 
-export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, profile }: Props) {
+export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, profile, health }: Props) {
   const weightRef = useRef<HTMLCanvasElement>(null)
   const calRef = useRef<HTMLCanvasElement>(null)
+  const sleepRef = useRef<HTMLCanvasElement>(null)
+  const stepsRef = useRef<HTMLCanvasElement>(null)
+  const hrRef = useRef<HTMLCanvasElement>(null)
+  const stressRef = useRef<HTMLCanvasElement>(null)
   const { theme } = useTheme()
   const dark = theme === 'dark'
   const p = profile ?? { calories_goal: 1900, protein_goal_g: 150, weight_kg: 74, target_weight_kg: 70 }
@@ -44,7 +55,10 @@ export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, pr
   const emptyBarColor = dark ? '#1e2d3d' : '#e2e8f0'
   const dotFill = dark ? '#0f1923' : '#ffffff'
 
-  useEffect(() => { drawWeightChart(); drawCalChart() })
+  useEffect(() => {
+    drawWeightChart(); drawCalChart()
+    drawSleepChart(); drawStepsChart(); drawHRChart(); drawStressChart()
+  })
 
   function drawWeightChart() {
     const canvas = weightRef.current
@@ -136,6 +150,148 @@ export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, pr
       ctx.fillText(days[dayIdx], bx + barW / 2, H - 6)
     })
   }
+
+  function drawBarChart(
+    canvasRef: React.RefObject<HTMLCanvasElement>,
+    data: number[],
+    dates: string[],
+    barColor: (v: number, i: number) => string,
+    goalLine?: number,
+    goalColor?: string,
+    overlayData?: number[],
+    overlayColor?: string,
+    H = 150,
+  ) {
+    const canvas = canvasRef.current; if (!canvas) return
+    const ctx = canvas.getContext('2d')!
+    const W = canvas.width = canvas.parentElement!.clientWidth
+    const pad = { t: 12, r: 10, b: 28, l: 38 }
+    const maxV = Math.max(goalLine ? goalLine * 1.3 : 1, ...data.map(Math.abs), 1)
+    const n = data.length
+    const barW = (W - pad.l - pad.r) / n * 0.55
+    const barGap = (W - pad.l - pad.r) / n
+    canvas.height = H
+    ctx.clearRect(0, 0, W, H)
+
+    if (goalLine) {
+      const gy = pad.t + (1 - goalLine / maxV) * (H - pad.t - pad.b)
+      ctx.setLineDash([4, 4]); ctx.strokeStyle = goalColor ?? 'rgba(16,185,129,0.5)'; ctx.lineWidth = 1
+      ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(W - pad.r, gy); ctx.stroke()
+      ctx.setLineDash([])
+      ctx.fillStyle = goalColor ?? '#10b981'; ctx.font = '9px Inter,sans-serif'; ctx.textAlign = 'right'
+      ctx.fillText(goalLine >= 1000 ? `${(goalLine/1000).toFixed(0)}k` : String(goalLine), pad.l - 3, gy + 3)
+    }
+
+    const days = ['S','M','T','W','T','F','S']
+    const todayIdx = new Date().getDay()
+    data.forEach((val, i) => {
+      const bx = pad.l + i * barGap + (barGap - barW) / 2
+      const barH = Math.max(2, (val / maxV) * (H - pad.t - pad.b))
+      const by = H - pad.b - barH
+      ctx.fillStyle = val === 0 ? emptyBarColor : barColor(val, i)
+      const r = 3
+      ctx.beginPath()
+      ctx.moveTo(bx + r, by); ctx.lineTo(bx + barW - r, by)
+      ctx.quadraticCurveTo(bx + barW, by, bx + barW, by + r)
+      ctx.lineTo(bx + barW, H - pad.b); ctx.lineTo(bx, H - pad.b)
+      ctx.lineTo(bx, by + r); ctx.quadraticCurveTo(bx, by, bx + r, by)
+      ctx.closePath(); ctx.fill()
+
+      // overlay (e.g. deep sleep)
+      if (overlayData && overlayData[i] > 0) {
+        const oh = Math.min(barH, (overlayData[i] / maxV) * (H - pad.t - pad.b))
+        ctx.fillStyle = overlayColor ?? 'rgba(99,102,241,0.5)'
+        ctx.beginPath()
+        ctx.moveTo(bx + r, H - pad.b - oh); ctx.lineTo(bx + barW - r, H - pad.b - oh)
+        ctx.quadraticCurveTo(bx + barW, H - pad.b - oh, bx + barW, H - pad.b - oh + r)
+        ctx.lineTo(bx + barW, H - pad.b); ctx.lineTo(bx, H - pad.b)
+        ctx.lineTo(bx, H - pad.b - oh + r); ctx.quadraticCurveTo(bx, H - pad.b - oh, bx + r, H - pad.b - oh)
+        ctx.closePath(); ctx.fill()
+      }
+
+      const d = new Date(dates[i] + 'T00:00:00')
+      const dayLabel = days[d.getDay()]
+      const isToday = dates[i] === today()
+      ctx.fillStyle = isToday ? '#6366f1' : labelColor
+      ctx.font = isToday ? 'bold 10px Inter,sans-serif' : '10px Inter,sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(dayLabel, bx + barW / 2, H - 6)
+    })
+  }
+
+  function drawSleepChart() {
+    const logs = health.sleep; if (!logs.length) return
+    const dates = logs.map(l => l.date)
+    const vals = logs.map(l => l.duration_h)
+    const deep = logs.map(l => l.deep_h ?? 0)
+    drawBarChart(sleepRef, vals, dates,
+      v => v >= 7.5 ? '#10b981' : v >= 6 ? '#f97316' : '#f43f5e',
+      8, 'rgba(16,185,129,0.5)', deep, 'rgba(99,102,241,0.55)', 140)
+  }
+
+  function drawStepsChart() {
+    const logs = health.steps; if (!logs.length) return
+    drawBarChart(stepsRef, logs.map(l => l.steps), logs.map(l => l.date),
+      v => v >= 10000 ? '#10b981' : v >= 6000 ? '#f97316' : '#94a3b8',
+      10000, 'rgba(16,185,129,0.5)', undefined, undefined, 140)
+  }
+
+  function drawHRChart() {
+    const canvas = hrRef.current; if (!canvas || health.hr.length < 2) return
+    const ctx = canvas.getContext('2d')!
+    const W = canvas.width = canvas.parentElement!.clientWidth
+    const H = canvas.height = 120
+    const pad = { t: 10, r: 10, b: 28, l: 38 }
+    const vals = health.hr.map(l => l.resting ?? l.avg)
+    const minV = Math.min(...vals) - 5, maxV = Math.max(...vals) + 5
+    const x = (i: number) => pad.l + (i / (vals.length - 1)) * (W - pad.l - pad.r)
+    const y = (v: number) => pad.t + (1 - (v - minV) / (maxV - minV)) * (H - pad.t - pad.b)
+
+    ctx.clearRect(0, 0, W, H)
+    ;[0, 0.5, 1].forEach(t => {
+      const yy = pad.t + t * (H - pad.t - pad.b)
+      ctx.strokeStyle = gridColor; ctx.lineWidth = 1
+      ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(W - pad.r, yy); ctx.stroke()
+      ctx.fillStyle = labelColor; ctx.font = '10px Inter,sans-serif'; ctx.textAlign = 'right'
+      ctx.fillText(String(Math.round(maxV - t * (maxV - minV))), pad.l - 4, yy + 4)
+    })
+
+    const grad = ctx.createLinearGradient(0, pad.t, 0, H - pad.b)
+    grad.addColorStop(0, 'rgba(244,63,94,0.15)'); grad.addColorStop(1, 'rgba(244,63,94,0)')
+    ctx.beginPath(); ctx.moveTo(x(0), y(vals[0]))
+    vals.forEach((v, i) => i > 0 && ctx.lineTo(x(i), y(v)))
+    ctx.lineTo(x(vals.length - 1), H - pad.b); ctx.lineTo(x(0), H - pad.b); ctx.closePath()
+    ctx.fillStyle = grad; ctx.fill()
+
+    ctx.beginPath(); ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 2.5
+    vals.forEach((v, i) => i === 0 ? ctx.moveTo(x(0), y(v)) : ctx.lineTo(x(i), y(v)))
+    ctx.stroke()
+
+    vals.forEach((v, i) => {
+      ctx.beginPath(); ctx.arc(x(i), y(v), 3, 0, Math.PI * 2)
+      ctx.fillStyle = '#f43f5e'; ctx.fill()
+      ctx.beginPath(); ctx.arc(x(i), y(v), 1.5, 0, Math.PI * 2)
+      ctx.fillStyle = dotFill; ctx.fill()
+    })
+
+    const days = ['S','M','T','W','T','F','S']
+    health.hr.forEach((l, i) => {
+      const d = new Date(l.date + 'T00:00:00')
+      ctx.fillStyle = l.date === today() ? '#f43f5e' : labelColor
+      ctx.font = l.date === today() ? 'bold 10px Inter,sans-serif' : '10px Inter,sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(days[d.getDay()], x(i), H - 6)
+    })
+  }
+
+  function drawStressChart() {
+    const logs = health.stress; if (!logs.length) return
+    drawBarChart(stressRef, logs.map(l => l.avg), logs.map(l => l.date),
+      v => v < 40 ? '#10b981' : v < 60 ? '#f97316' : '#f43f5e',
+      undefined, undefined, undefined, undefined, 130)
+  }
+
+  const hasHealth = health.sleep.length > 0 || health.steps.length > 0 || health.hr.length > 0 || health.stress.length > 0
 
   const insights: { icon: string; text: string; type: 'green' | 'orange' | 'red' }[] = []
   const loggedDays = last7.filter(d => (foodByDate[d]?.calories ?? 0) > 0).length
@@ -252,6 +408,88 @@ export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, pr
             </div>
           </div>
         </div>
+
+        {/* ── Health / Samsung charts ───────────────── */}
+        {hasHealth ? (
+          <>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.15em] pt-1" style={{ color: 'var(--muted2)' }}>⌚ Health — 7 Days</div>
+
+            {health.sleep.length > 0 && (
+              <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.15em]" style={{ color: 'var(--muted2)' }}>😴 Sleep</div>
+                  <div className="text-[10px] font-semibold" style={{ color: 'var(--muted2)' }}>
+                    Avg {(health.sleep.reduce((s, l) => s + l.duration_h, 0) / health.sleep.length).toFixed(1)}h
+                  </div>
+                </div>
+                <div className="flex gap-3 text-[10px] font-semibold mb-3" style={{ color: 'var(--muted2)' }}>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#10b981' }} />≥7.5h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#f97316' }} />6–7.5h</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#f43f5e' }} />&lt;6h</span>
+                  {health.sleep.some(l => l.deep_h) && <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: 'rgba(99,102,241,0.6)' }} />Deep</span>}
+                </div>
+                <div className="overflow-hidden"><canvas ref={sleepRef} /></div>
+              </div>
+            )}
+
+            {health.steps.length > 0 && (
+              <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.15em]" style={{ color: 'var(--muted2)' }}>👟 Steps</div>
+                  <div className="text-[10px] font-semibold" style={{ color: 'var(--muted2)' }}>
+                    Avg {Math.round(health.steps.reduce((s, l) => s + l.steps, 0) / health.steps.length).toLocaleString()} / day
+                  </div>
+                </div>
+                <div className="overflow-hidden"><canvas ref={stepsRef} /></div>
+                <div className="flex gap-3 mt-2 text-[10px] font-semibold" style={{ color: 'var(--muted2)' }}>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#10b981' }} />≥10k</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#f97316' }} />6–10k</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#94a3b8' }} />&lt;6k</span>
+                </div>
+              </div>
+            )}
+
+            {health.hr.length >= 2 && (
+              <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.15em]" style={{ color: 'var(--muted2)' }}>❤️ Resting Heart Rate</div>
+                  <div className="text-[10px] font-semibold" style={{ color: '#f43f5e' }}>
+                    {Math.round(health.hr.reduce((s, l) => s + (l.resting ?? l.avg), 0) / health.hr.length)} bpm avg
+                  </div>
+                </div>
+                <div className="overflow-hidden"><canvas ref={hrRef} /></div>
+              </div>
+            )}
+
+            {health.stress.length > 0 && (
+              <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.15em]" style={{ color: 'var(--muted2)' }}>🧠 Stress</div>
+                  <div className="text-[10px] font-semibold" style={{ color: 'var(--muted2)' }}>
+                    Avg {Math.round(health.stress.reduce((s, l) => s + l.avg, 0) / health.stress.length)}
+                  </div>
+                </div>
+                <div className="overflow-hidden"><canvas ref={stressRef} /></div>
+                <div className="flex gap-3 mt-2 text-[10px] font-semibold" style={{ color: 'var(--muted2)' }}>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#10b981' }} />&lt;40 Low</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#f97316' }} />40–60 Med</span>
+                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm inline-block" style={{ background: '#f43f5e' }} />&gt;60 High</span>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="rounded-2xl p-5 flex items-center gap-4"
+            style={{ background: 'var(--surface)', border: '1px dashed var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+            <div className="text-3xl">⌚</div>
+            <div>
+              <div className="font-bold text-sm" style={{ color: 'var(--text)' }}>No health data yet</div>
+              <div className="text-xs mt-0.5" style={{ color: 'var(--muted2)' }}>
+                Import Samsung Health data in <Link href="/settings" className="underline">Settings</Link> to see sleep, steps & HR charts
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Insights ──────────────────────────────── */}
         <div className="text-[11px] font-semibold uppercase tracking-[0.15em] pt-1" style={{ color: 'var(--muted2)' }}>Insights</div>
