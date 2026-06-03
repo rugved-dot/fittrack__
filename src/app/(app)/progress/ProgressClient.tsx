@@ -13,8 +13,6 @@ interface Props {
   profile: Profile | null
 }
 
-const START_WEIGHT = weightLogs.length ? weightLogs[0].weight_kg : p.weight_kg
-
 function today() { return new Date().toISOString().slice(0, 10) }
 function last7Dates() {
   return Array.from({ length: 7 }, (_, i) => {
@@ -29,6 +27,7 @@ export default function ProgressClient({ weightLogs, workoutLogs, foodByDate, pr
   const { theme } = useTheme()
   const dark = theme === 'dark'
   const p = profile ?? { calories_goal: 1900, protein_goal_g: 150, weight_kg: 74, target_weight_kg: 70 }
+  const START_WEIGHT = weightLogs.length ? weightLogs[0].weight_kg : p.weight_kg
 
   const last7 = last7Dates()
   const calData = last7.map(d => foodByDate[d]?.calories ?? 0)
