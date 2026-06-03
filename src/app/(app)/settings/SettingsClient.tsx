@@ -96,6 +96,38 @@ export default function SettingsClient({ profile }: Props) {
 
   function status(msg: string, color = '#10b981') { setImportStatus(msg); setImportColor(color) }
 
+  async function importFolder(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []).filter(f => f.name.endsWith('.csv'))
+    if (!files.length) { status('No CSV files found in the selected folder.', '#f97316'); return }
+    status(`Reading ${files.length} CSV files…`, '#6366f1')
+    let total = 0
+    const results: string[] = []
+    await Promise.all(files.map(async file => {
+      const stem = file.name.replace('.csv', '').toLowerCase()
+      let dtype: string | null = null
+      for (const [k, v] of Object.entries(SAMSUNG_FILE_MAP)) {
+        if (stem.includes(k.toLowerCase())) { dtype = v; break }
+      }
+      if (!dtype) {
+        if (stem.includes('weight')) dtype = 'weight'
+        else if (stem.includes('sleep')) dtype = 'sleep'
+        else if (stem.includes('heart')) dtype = 'heart_rate'
+        else if (stem.includes('step')) dtype = 'steps'
+        else if (stem.includes('stress')) dtype = 'stress'
+        else if (stem.includes('oxygen') || stem.includes('spo2')) dtype = 'spo2'
+        else if (stem.includes('body') || stem.includes('composition')) dtype = 'body_composition'
+        else if (stem.includes('exercise') || stem.includes('activity')) dtype = 'exercise'
+      }
+      if (!dtype) return
+      const text = await file.text()
+      const n = await parseSamsungCSV(text, dtype)
+      if (n > 0) results.push(`${dtype}:${n}`)
+      total += n
+    }))
+    status(total ? `✓ ${total} records imported (${results.join(', ')})` : 'No matching data found in folder.', total ? '#10b981' : '#f97316')
+    if (total) router.refresh()
+  }
+
   async function importZip(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; if (!file) return
     status('Reading ZIP…', '#6366f1')
@@ -421,19 +453,36 @@ export default function SettingsClient({ profile }: Props) {
         <div className="rounded-2xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
           <div className="text-[11px] font-semibold uppercase tracking-[0.15em] mb-1" style={{ color: 'var(--muted2)' }}>⌚ Samsung Health</div>
           <div className="text-sm font-medium leading-relaxed mb-4 mt-2" style={{ color: 'var(--muted)' }}>
-            Samsung Health → profile photo → <span className="font-semibold" style={{ color: 'var(--text)' }}>Settings → Download personal data</span>. Import the <span className="font-semibold" style={{ color: 'var(--text)' }}>.zip</span> you receive by email.
+            Samsung Health → profile photo → <span className="font-semibold" style={{ color: 'var(--text)' }}>Settings → Download personal data</span>. You'll get a folder or ZIP — both work below.
+          </div>
+
+          {/* Folder import — primary for phone users */}
+          <label className="block mb-3 cursor-pointer">
+            <input type="file" accept=".csv" multiple
+              // @ts-ignore
+              webkitdirectory=""
+              onChange={importFolder}
+              className="hidden" />
+            <div className="text-white font-black py-4 rounded-2xl text-center text-sm tracking-[0.08em] uppercase"
+              style={{ background: '#10b981' }}>
+              📁 Import Samsung Folder
+            </div>
+          </label>
+
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-center mb-3" style={{ color: 'var(--muted2)' }}>
+            — or if you have the ZIP file —
           </div>
 
           <label className="block mb-4 cursor-pointer">
             <input type="file" accept=".zip" onChange={importZip} className="hidden" />
-            <div className="text-white font-black py-4 rounded-2xl text-center text-sm tracking-[0.08em] uppercase"
-              style={{ background: '#10b981' }}>
-              📦 Import Samsung ZIP
+            <div className="font-black py-3.5 rounded-2xl text-center text-sm tracking-[0.08em] uppercase"
+              style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--muted)' }}>
+              📦 Import ZIP File
             </div>
           </label>
 
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-center mb-3" style={{ color: 'var(--border2)' }}>
-            — or import individual CSV files —
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-center mb-3" style={{ color: 'var(--muted2)' }}>
+            — or pick individual CSV files —
           </div>
 
           <div className="grid grid-cols-2 gap-2">
