@@ -131,7 +131,8 @@ export default function NutritionClient({ foodLogs, profile, waterMl: initialWat
 
     try {
       const arrayBuffer = await file.arrayBuffer()
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)))
+      const bytes = new Uint8Array(arrayBuffer)
+      const base64 = btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''))
       const mimeType = file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
 
       const res = await fetch('/api/analyze-food', {
