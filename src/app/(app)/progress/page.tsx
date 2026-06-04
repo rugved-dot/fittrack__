@@ -5,7 +5,7 @@ import ProgressClient from './ProgressClient'
 async function getData() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { weightLogs: [], workoutLogs: [], foodByDate: {}, profile: null, health: {}, bodyFatLogs: [] }
+  if (!user) return { weightLogs: [], workoutLogs: [], foodByDate: {}, profile: null, health: { sleep: [], steps: [], hr: [], stress: [] }, bodyFatLogs: [] }
 
   const last30 = new Date(); last30.setDate(last30.getDate() - 30)
   const last7 = new Date(); last7.setDate(last7.getDate() - 7)
